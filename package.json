@@ -1,0 +1,13 @@
+{
+  "name": "tipline-biobuzz",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BIOBUZZ (FTC 2026-27) match video scorer, shot counter and strategy lab.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:mock": "MOCK_AI=1 node scripts/dev.mjs",
+    "test": "node scripts/test-scoring.mjs"
+  }
+}
