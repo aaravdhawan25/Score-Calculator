@@ -11,11 +11,15 @@ function accessCode() {
   try { return localStorage.getItem('tipline.code') || ''; } catch { return ''; }
 }
 
+export function visitorKey() {
+  try { return localStorage.getItem('tipline.okey') || ''; } catch { return ''; }
+}
+
 export async function api(task, frames, meta, { retries = 2 } = {}) {
   for (let attempt = 0; ; attempt++) {
     const r = await fetch('/api/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-access-code': accessCode() },
+      headers: { 'Content-Type': 'application/json', 'x-access-code': accessCode(), ...(visitorKey() ? { 'x-openai-key': visitorKey() } : {}) },
       body: JSON.stringify({ task, frames, meta }),
     });
     const data = await r.json().catch(() => ({ error: `Server returned ${r.status}` }));
@@ -25,6 +29,8 @@ export async function api(task, frames, meta, { retries = 2 } = {}) {
       const err = new Error(data.error || `Request failed (${r.status})`);
       err.status = r.status;
       err.needsCode = data.needsCode;
+      err.needsKey = data.needsKey;
+      err.keyProblem = data.keyProblem;
       throw err;
     }
     await new Promise((res) => setTimeout(res, 1500 * 2 ** attempt));
@@ -53,8 +59,24 @@ export async function analyzeMatch(video, { settings, start, fps, onStep, signal
   const mode = MODES[settings.mode];
   const end = Math.min(video.duration, start + len + TIMING.settle);
   const meta = { alliance: settings.alliance, mode: mode.label, robots: mode.robotsPerAlliance, opponent: mode.opponent };
-  const run = limiter(CONCURRENCY);
-  const check = () => { if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError'); };
+  const limit = limiter(CONCURRENCY);
+  // A bad key or access code fails every request the same way: stop at the first one.
+  let fatal = null;
+  const check = () => {
+    if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+    if (fatal) throw fatal;
+  };
+  const run = (fn) => {
+    const p = limit(async () => {
+      check();
+      try { return await fn(); } catch (e) {
+        if (e.needsKey || e.keyProblem || e.needsCode) fatal = fatal || e;
+        throw e;
+      }
+    });
+    p.catch(() => {}); // settled together below; avoid unhandled-rejection noise
+    return p;
+  };
 
   // 1. Sample the scoring window.
   const times = [];
@@ -100,6 +122,7 @@ export async function analyzeMatch(video, { settings, start, fps, onStep, signal
   const grabAt = async (ts, width = 1024) => {
     const out = [];
     for (const t of ts) {
+      check();
       if (t < 0 || t > video.duration) continue;
       await seek(video, t);
       out.push({ t: +t.toFixed(2), image: grab(video, width, 0.75) });
@@ -135,6 +158,7 @@ export async function analyzeMatch(video, { settings, start, fps, onStep, signal
   }));
 
   const results = await Promise.allSettled(pending);
+  if (fatal) throw fatal;
   const failures = results.filter((r) => r.status === 'rejected');
   if (failures.length === results.length) throw failures[0].reason;
   if (failures.some((f) => f.reason?.name === 'AbortError')) throw new DOMException('Cancelled', 'AbortError');

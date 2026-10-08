@@ -1,7 +1,7 @@
 import { TIMING, POINTS, RP, MODES, matchLength, clockAt, fmtClock, PHASE_LABEL } from './game.js';
 import { buildRecord, scoreMatch, shotStats, other } from './scoring.js';
 import { detectStart, seek } from './frames.js';
-import { analyzeMatch, api } from './analyzer.js';
+import { analyzeMatch, api, visitorKey } from './analyzer.js';
 import { SUBSYSTEMS, normaliseSubsystem, matchTips, PLANNER_DEFAULTS, project, sensitivity } from './strategy.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -289,15 +289,58 @@ function askCode() {
   });
 }
 
+function askKey() {
+  return new Promise((resolve) => {
+    const dlg = $('#keyDialog');
+    dlg.returnValue = '';
+    $('#keyInput').value = '';
+    dlg.showModal();
+    dlg.addEventListener('close', () => {
+      const k = $('#keyInput').value.trim();
+      if (dlg.returnValue === 'ok' && k) {
+        try { localStorage.setItem('tipline.okey', k); } catch { /* ignore */ }
+        renderKeyLine();
+        resolve(true);
+      } else resolve(false);
+    }, { once: true });
+  });
+}
+
+function forgetKey() {
+  try { localStorage.removeItem('tipline.okey'); } catch { /* ignore */ }
+  renderKeyLine();
+}
+
+/** One line under the button saying which OpenAI key analysis will use. */
+function renderKeyLine() {
+  const h = state.health;
+  const el = $('#keyLine');
+  if (!h || h.offline || h.mock || (h.ai && !h.visitorKey)) { el.hidden = true; return; }
+  el.hidden = false;
+  const k = visitorKey();
+  el.innerHTML = k
+    ? `OpenAI key: <span class="mono">sk-…${esc(k.slice(-4))}</span> (saved in this browser) <button type="button" class="linkbtn" data-key="change">Change</button><button type="button" class="linkbtn" data-key="remove">Remove</button>`
+    : 'No OpenAI key on this site yet. <button type="button" class="linkbtn" data-key="change">Add your key</button>';
+}
+
+$('#keyLine').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-key]');
+  if (!b) return;
+  if (b.dataset.key === 'remove') forgetKey(); else askKey();
+});
+
 async function runAnalysis() {
   if (state.running) { state.running.abort(); return; }
   if (state.start == null) state.start = 0;
   readSettings();
   const health = await ensureHealth();
-  if (!health.ai) {
-    setStatus(health.offline
-      ? 'The analysis server is unreachable. If you opened the HTML file directly, run it with `npm run dev` or deploy to Vercel.'
-      : 'Video analysis is not configured on this deployment (OPENAI_API_KEY missing). You can still use the planner and enter scores manually below.', true);
+  if (health.offline) {
+    setStatus('The analysis server is unreachable. If you opened the HTML file directly, run it with `npm run dev` or deploy to Vercel.', true);
+    showManual();
+    return;
+  }
+  if (!health.ai && !visitorKey() && !(await askKey())) {
+    setStatus('Video analysis needs an OpenAI key. Add one with “Add your key”, or enter the score manually in the review panel.', true);
     showManual();
     return;
   }
@@ -344,6 +387,10 @@ async function runAnalysis() {
     else if (e.needsCode) {
       try { localStorage.removeItem('tipline.code'); } catch { /* ignore */ }
       setStatus('That access code was not accepted. Press “Score this match” to try again.', true);
+    } else if (e.needsKey || (e.keyProblem && visitorKey())) {
+      if (e.status === 401) forgetKey();
+      setStatus(e.message, true);
+      renderKeyLine();
     } else setStatus(e.message || 'Analysis failed.', true);
     $$('#progress li.active').forEach((li) => { li.className = 'error'; });
   } finally {
@@ -930,6 +977,7 @@ renderPlanner();
 renderField();
 renderCoaching();
 ensureHealth().then((h) => {
+  renderKeyLine();
   if (!h.ai) {
     const b = document.createElement('button');
     b.className = 'btn ghost small';

@@ -8,7 +8,8 @@ import { GAME_BRIEF } from './_rules.js';
 
 const MAX_FRAMES = 16;
 const MAX_IMAGE_CHARS = 450_000; // ~330 KB per base64 JPEG
-const FALLBACK_MODEL = 'gpt-4.1';
+// Tried in order when a model is unavailable to the key's project.
+const FALLBACK_MODELS = ['gpt-4.1', 'gpt-4o'];
 
 const TASKS = {
   segment: {
@@ -103,7 +104,7 @@ function parseJsonLoose(text) {
   }
 }
 
-async function callOpenAI({ model, system, content, maxTokens }) {
+async function callOpenAI({ key, model, system, content, maxTokens }) {
   const reasoning = /^(gpt-5|o\d)/.test(model);
   const body = {
     model,
@@ -120,7 +121,7 @@ async function callOpenAI({ model, system, content, maxTokens }) {
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      Authorization: `Bearer ${key}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -129,11 +130,37 @@ async function callOpenAI({ model, system, content, maxTokens }) {
   if (!r.ok) {
     const err = new Error(data?.error?.message || `OpenAI error ${r.status}`);
     err.status = r.status;
-    err.code = data?.error?.code;
+    err.code = data?.error?.code || data?.error?.type;
     throw err;
   }
   const text = data.choices?.[0]?.message?.content || '';
   return { result: parseJsonLoose(text), usage: data.usage, model: data.model };
+}
+
+/**
+ * The deployment's own key wins. Without one, a visitor may supply their own
+ * key from the page; it is used for this request only and never stored.
+ */
+function resolveKey(req) {
+  if (process.env.OPENAI_API_KEY) return { key: process.env.OPENAI_API_KEY.trim(), source: 'server' };
+  const k = req.headers['x-openai-key'];
+  if (typeof k === 'string' && /^sk-[A-Za-z0-9_-]{20,}$/.test(k.trim())) return { key: k.trim(), source: 'visitor' };
+  return null;
+}
+
+const isModelUnavailable = (e) =>
+  e.status === 404 || e.code === 'model_not_found' ||
+  (e.status === 403 && /model/i.test(e.message || '')) ||
+  (e.status === 400 && /model/i.test(e.message || ''));
+
+/** Turn an OpenAI failure into something a team can act on. */
+function explain(e, source) {
+  const whose = source === 'server' ? 'The OpenAI key set on this deployment' : 'Your OpenAI key';
+  if (e.status === 401) return { status: 401, keyProblem: true, error: `${whose} was rejected by OpenAI (invalid, revoked or mistyped). Create a new key at platform.openai.com/api-keys.` };
+  if (e.code === 'insufficient_quota') return { status: 402, keyProblem: true, error: `${whose} has no credit. Add billing or credit at platform.openai.com/settings/organization/billing, then try again.` };
+  if (e.status === 403) return { status: 403, keyProblem: true, error: `${whose} is not allowed to use the vision models (${e.message}). In the OpenAI dashboard, open the key's project → Limits → allow gpt-4.1 or gpt-4o, or set OPENAI_MODEL to a model it can use.` };
+  if (e.status === 429) return { status: 429, error: 'OpenAI rate limit reached. Wait a minute and try again, or choose Standard depth.' };
+  return { status: 502, error: e.message || 'Analysis failed' };
 }
 
 export default async function handler(req, res) {
@@ -167,8 +194,9 @@ export default async function handler(req, res) {
     return json(res, 200, { result: mockResponse(task, frames, meta), model: 'mock' });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return json(res, 503, { error: 'OPENAI_API_KEY is not set on the server. Add it in Vercel → Settings → Environment Variables and redeploy.' });
+  const auth = resolveKey(req);
+  if (!auth) {
+    return json(res, 503, { needsKey: true, error: 'No OpenAI key: set OPENAI_API_KEY in Vercel → Settings → Environment Variables and redeploy, or enter a key on the page.' });
   }
 
   const content = [{ type: 'text', text: spec.instructions({ meta }) }];
@@ -177,19 +205,17 @@ export default async function handler(req, res) {
     content.push({ type: 'image_url', image_url: { url: f.image, detail: f.detail === 'low' ? 'low' : 'high' } });
   }
 
-  const preferred = process.env.OPENAI_MODEL || 'gpt-5';
-  try {
-    let out;
+  const models = [...new Set([process.env.OPENAI_MODEL || 'gpt-5', ...FALLBACK_MODELS])];
+  let lastErr;
+  for (const model of models) {
     try {
-      out = await callOpenAI({ model: preferred, system: GAME_BRIEF, content, maxTokens: spec.maxTokens });
+      const out = await callOpenAI({ key: auth.key, model, system: GAME_BRIEF, content, maxTokens: spec.maxTokens });
+      return json(res, 200, out);
     } catch (e) {
-      const missingModel = e.status === 404 || e.code === 'model_not_found' || (e.status === 400 && /model/i.test(e.message || ''));
-      if (!missingModel || preferred === FALLBACK_MODEL) throw e;
-      out = await callOpenAI({ model: FALLBACK_MODEL, system: GAME_BRIEF, content, maxTokens: spec.maxTokens });
+      lastErr = e;
+      if (!isModelUnavailable(e)) break;
     }
-    return json(res, 200, out);
-  } catch (e) {
-    const status = e.status === 429 ? 429 : 502;
-    return json(res, status, { error: e.status === 401 ? 'The server\'s OpenAI key was rejected.' : e.message || 'Analysis failed' });
   }
+  const { status, ...body } = explain(lastErr, auth.source);
+  return json(res, status, body);
 }

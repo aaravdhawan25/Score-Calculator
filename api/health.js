@@ -5,6 +5,7 @@ export default function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.end(JSON.stringify({
     ai: Boolean(process.env.OPENAI_API_KEY) || process.env.MOCK_AI === '1',
+    visitorKey: !process.env.OPENAI_API_KEY, // the page may supply its own key
     mock: process.env.MOCK_AI === '1',
     accessCode: Boolean(process.env.ACCESS_CODE),
   }));
