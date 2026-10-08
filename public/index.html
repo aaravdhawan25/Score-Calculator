@@ -176,6 +176,7 @@
 
             <button class="btn primary block" type="button" id="analyzeBtn" disabled>Score this match</button>
             <p class="status" id="status" role="status"></p>
+            <p class="keyline" id="keyLine" hidden></p>
             <ol class="progress" id="progress" hidden></ol>
           </div>
         </div>
@@ -393,6 +394,19 @@
       <div class="modal-actions">
         <button class="btn ghost small" value="cancel" formnovalidate>Cancel</button>
         <button class="btn primary small" value="ok">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="keyDialog">
+    <form method="dialog">
+      <h3>Connect an OpenAI key</h3>
+      <p>This deployment has no OpenAI key of its own. Paste one to analyze video from this browser. It is saved only on this device and sent with each analysis request — never stored on the server.</p>
+      <input type="password" id="keyInput" autocomplete="off" spellcheck="false" placeholder="sk-…" required pattern="sk-[A-Za-z0-9_\-]{20,}">
+      <p class="modal-hint">Site owner? Set <code>OPENAI_API_KEY</code> in Vercel → Settings → Environment Variables, then redeploy, and nobody will need to do this.</p>
+      <div class="modal-actions">
+        <button class="btn ghost small" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary small" value="ok">Save key</button>
       </div>
     </form>
   </dialog>

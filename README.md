@@ -28,12 +28,14 @@ api/health.js      reports whether analysis is configured
 
 1. Import this repository in Vercel. No framework preset or build command is needed (`vercel.json` sets `public/` as the output).
 2. In **Settings → Environment Variables** add:
-   - `OPENAI_API_KEY` — required.
-   - `OPENAI_MODEL` — optional, defaults to `gpt-5` (falls back to `gpt-4.1` if unavailable).
+   - `OPENAI_API_KEY` — recommended (without it, each visitor must enter their own key).
+   - `OPENAI_MODEL` — optional, defaults to `gpt-5` (falls back to `gpt-4.1`, then `gpt-4o`).
    - `ACCESS_CODE` — optional but recommended: visitors must enter it before the site spends API credits.
-3. Redeploy.
+3. **Redeploy** (Deployments → ⋯ → Redeploy). Environment variables only reach deployments made after you save them.
 
 Never commit a key. `.env` files are git-ignored.
+
+If no server key is set, the page asks the visitor for their own OpenAI key instead. It is kept in that browser's local storage and sent only with analysis requests; the server never stores it. When OpenAI refuses a key, the page says why: invalid or revoked, no credit or billing, or the key's project isn't allowed to use the vision models. The server tries `OPENAI_MODEL` (default `gpt-5`), then `gpt-4.1`, then `gpt-4o`, until it finds one the key's project can use.
 
 ## Run locally
 
