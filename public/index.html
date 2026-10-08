@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tipline — BIOBUZZ match scorer</title>
+  <meta name="description" content="Upload FTC BIOBUZZ match video. Tipline clocks the match, counts every launched element and HIVE TIP, scores it against the 2026–27 manual, and shows where your next points are.">
+  <meta name="theme-color" content="#f3f0e8" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <a class="skip" href="#analyze">Skip to the analyzer</a>
+
+  <header class="masthead">
+    <div class="wrap masthead-row">
+      <a class="brand" href="#top" aria-label="Tipline home">
+        <svg viewBox="0 0 32 32" aria-hidden="true" class="brand-mark"><path d="M16 2.5 27.7 9.25v13.5L16 29.5 4.3 22.75V9.25z" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M10 19.5 22 12.5" stroke="var(--honey)" stroke-width="3.2" stroke-linecap="round"/><circle cx="22" cy="12.5" r="2.6" fill="var(--honey)"/></svg>
+        <span>Tipline</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#analyze">Analyze</a>
+        <a href="#coach">Coaching</a>
+        <a href="#planner">Planner</a>
+        <a href="#rules">Scoring rules</a>
+      </nav>
+      <span class="season mono">FTC 2026–27 · BIOBUZZ</span>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="intro">
+      <div class="wrap intro-grid">
+        <div>
+          <p class="kicker mono">Match video → referee-grade score</p>
+          <h1>Every TIP, every miss, every point left on the field.</h1>
+          <p class="lede">Drop in match footage. Tipline runs the field clock — <span class="mono">0:30</span> AUTO, <span class="mono">0:08</span> transition, <span class="mono">2:00</span> TELEOP — counts every element your robot launches, and scores it against the BIOBUZZ manual. Then it tells you exactly where the next points are.</p>
+          <ol class="steps">
+            <li><span class="mono">01</span> Upload a match or practice run</li>
+            <li><span class="mono">02</span> Mark when the robots start moving</li>
+            <li><span class="mono">03</span> Get the score, shot count and a plan</li>
+          </ol>
+        </div>
+        <aside class="valuecard" aria-label="Point values">
+          <div class="valuecard-head">
+            <span class="mono">Table 10-2</span>
+            <span>Point values</span>
+          </div>
+          <dl class="values">
+            <div><dt>HIVE TIP</dt><dd class="mono">20</dd></div>
+            <div><dt>Element left in CELL</dt><dd class="mono">2</dd></div>
+            <div><dt>Element in owned FLOWER</dt><dd class="mono">2</dd></div>
+            <div><dt>Bottom NECTAR bonus</dt><dd class="mono">5</dd></div>
+            <div><dt>Element in GARDEN</dt><dd class="mono">1</dd></div>
+            <div><dt>PARK (AUTO / end)</dt><dd class="mono">5 / 5</dd></div>
+            <div><dt>LEAVE (AUTO)</dt><dd class="mono">3</dd></div>
+          </dl>
+          <a class="link-arrow" href="#rules">Full rules breakdown</a>
+        </aside>
+      </div>
+    </section>
+
+    <!-- 01 ANALYZE -->
+    <section id="analyze" class="section">
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-num mono">01</span>
+          <div>
+            <h2>Analyze a match</h2>
+            <p>Your video never leaves your device — only still frames from inside the scoring window are sent for analysis.</p>
+          </div>
+        </header>
+
+        <div class="workbench">
+          <div class="stage panel">
+            <label class="dropzone" id="dropzone">
+              <input type="file" id="file" accept="video/*" hidden>
+              <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4 41.3 14v20L24 44 6.7 34V14z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M24 30V17m-6 6 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <strong>Drop a match video here</strong>
+              <span>or click to choose a file · MP4 / MOV / WebM</span>
+              <span class="hint">Best results: a wide shot of the whole field, filmed from the stands, steady.</span>
+            </label>
+
+            <div class="player" id="player" hidden>
+              <div class="video-wrap">
+                <video id="video" playsinline preload="auto"></video>
+                <div class="clock" id="clock" aria-live="off">
+                  <span class="clock-phase" id="clockPhase">Pre-match</span>
+                  <span class="clock-time mono" id="clockTime">0:30</span>
+                </div>
+                <div class="flash" id="flash" hidden></div>
+              </div>
+              <div class="timeline" id="timeline" role="slider" tabindex="0" aria-label="Video position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="tl-bands" id="tlBands"></div>
+                <div class="tl-marks" id="tlMarks"></div>
+                <div class="tl-head" id="tlHead"></div>
+              </div>
+              <div class="tl-legend mono" id="tlLegend"></div>
+              <div class="transport">
+                <button class="icon-btn" id="playBtn" type="button" aria-label="Play">
+                  <svg viewBox="0 0 24 24" class="i-play"><path d="M7 5v14l12-7z" fill="currentColor"/></svg>
+                  <svg viewBox="0 0 24 24" class="i-pause"><path d="M7 5h3.5v14H7zm6.5 0H17v14h-3.5z" fill="currentColor"/></svg>
+                </button>
+                <button class="icon-btn" type="button" data-step="-1" aria-label="Back 1 second">−1s</button>
+                <button class="icon-btn" type="button" data-step="1" aria-label="Forward 1 second">+1s</button>
+                <span class="vtime mono" id="vtime">0:00.0 / 0:00</span>
+                <span class="spacer"></span>
+                <button class="btn ghost small" type="button" id="replaceBtn">Replace video</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup panel">
+            <fieldset class="field">
+              <legend>Your alliance</legend>
+              <div class="switch alliance-switch" role="radiogroup" aria-label="Alliance">
+                <input type="radio" name="alliance" id="al-red" value="red" checked>
+                <label for="al-red">Red</label>
+                <input type="radio" name="alliance" id="al-blue" value="blue">
+                <label for="al-blue">Blue</label>
+                <span class="switch-thumb" aria-hidden="true"></span>
+              </div>
+            </fieldset>
+
+            <fieldset class="field">
+              <legend>Match type</legend>
+              <div class="switch three" role="radiogroup" aria-label="Match type">
+                <input type="radio" name="mode" id="m-solo" value="solo">
+                <label for="m-solo">Solo practice</label>
+                <input type="radio" name="mode" id="m-1v1" value="1v1">
+                <label for="m-1v1">1v1</label>
+                <input type="radio" name="mode" id="m-2v2" value="2v2" checked>
+                <label for="m-2v2">2v2 match</label>
+                <span class="switch-thumb" aria-hidden="true"></span>
+              </div>
+              <p class="field-note" id="modeNote"></p>
+            </fieldset>
+
+            <fieldset class="field">
+              <legend>Autonomous period</legend>
+              <div class="switch" role="radiogroup" aria-label="Autonomous">
+                <input type="radio" name="auto" id="auto-on" value="on" checked>
+                <label for="auto-on">With AUTO</label>
+                <input type="radio" name="auto" id="auto-off" value="off">
+                <label for="auto-off">No AUTO</label>
+                <span class="switch-thumb" aria-hidden="true"></span>
+              </div>
+              <p class="field-note" id="autoNote"></p>
+            </fieldset>
+
+            <fieldset class="field">
+              <legend>Match start <span class="legend-aside">robots begin moving</span></legend>
+              <div class="start-row">
+                <output class="start-readout mono" id="startReadout">—</output>
+                <button class="btn ghost small" type="button" id="setStartBtn" disabled>Use current frame</button>
+                <button class="btn ghost small" type="button" id="detectBtn" disabled>Auto-detect</button>
+              </div>
+              <ol class="window mono" id="windowList"></ol>
+            </fieldset>
+
+            <fieldset class="field">
+              <legend>Analysis depth</legend>
+              <div class="switch" role="radiogroup" aria-label="Analysis depth">
+                <input type="radio" name="fps" id="fps-1" value="1" checked>
+                <label for="fps-1">Standard</label>
+                <input type="radio" name="fps" id="fps-2" value="2">
+                <label for="fps-2">Thorough</label>
+                <span class="switch-thumb" aria-hidden="true"></span>
+              </div>
+              <p class="field-note" id="fpsNote"></p>
+            </fieldset>
+
+            <button class="btn primary block" type="button" id="analyzeBtn" disabled>Score this match</button>
+            <p class="status" id="status" role="status"></p>
+            <ol class="progress" id="progress" hidden></ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="results" class="section results" hidden>
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-num mono">02</span>
+          <div>
+            <h2>Match result</h2>
+            <p id="resultsSub">Scored from Table 10-2. Every count below is editable — correct anything the AI got wrong and the score updates instantly.</p>
+          </div>
+        </header>
+
+        <div class="scoreboard" id="scoreboard"></div>
+        <div class="tiles" id="shotTiles"></div>
+
+        <div class="panel chart-panel">
+          <div class="panel-head">
+            <h3>Shot timeline</h3>
+            <div class="chart-legend" id="chartLegend"></div>
+          </div>
+          <div class="chart" id="shotChart"></div>
+          <details class="table-view">
+            <summary>Show as table</summary>
+            <div id="shotTable"></div>
+          </details>
+        </div>
+
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h3>Score breakdown</h3><span class="mono muted" id="breakdownTag"></span></div>
+            <div id="breakdown"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Referee review</h3><span class="muted small">Adjust counts to match what you saw</span></div>
+            <div id="review"></div>
+          </div>
+        </div>
+
+        <div class="split">
+          <div class="panel">
+            <div class="panel-head"><h3>Not counted</h3></div>
+            <div id="excluded"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><h3>Play-by-play</h3><span class="muted small">AI observations</span></div>
+            <div id="pbp" class="pbp"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COACHING -->
+    <section id="coach" class="section">
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-num mono">03</span>
+          <div>
+            <h2>Where the next points are</h2>
+            <p id="coachSub">Score a match to get advice ranked by how many points it is worth. Until then, pick your robot's subsystems below to see how to use them.</p>
+          </div>
+        </header>
+
+        <p class="coach-headline" id="coachHeadline" hidden></p>
+        <div class="tipgrid" id="tipList"></div>
+
+        <div class="panel subsys">
+          <div class="panel-head">
+            <h3>Your robot, weaponized</h3>
+            <span class="muted small" id="subsysNote">Tap what your robot has</span>
+          </div>
+          <div class="chips" id="subsysChips" role="group" aria-label="Subsystems"></div>
+          <div class="plays" id="plays"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANNER -->
+    <section id="planner" class="section">
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-num mono">04</span>
+          <div>
+            <h2>Points planner</h2>
+            <p>Set what your alliance can do and see the score it projects, the ranking points it earns, and which single improvement is worth the most.</p>
+          </div>
+        </header>
+
+        <div class="planner">
+          <form class="panel planner-inputs" id="plannerForm" onsubmit="return false">
+            <div class="pgroup">
+              <h4 class="mono">Alliance</h4>
+              <div class="switch" role="radiogroup" aria-label="Robots">
+                <input type="radio" name="p-robots" id="pr-1" value="1"><label for="pr-1">1 robot</label>
+                <input type="radio" name="p-robots" id="pr-2" value="2" checked><label for="pr-2">2 robots</label>
+                <span class="switch-thumb" aria-hidden="true"></span>
+              </div>
+            </div>
+            <div class="pgroup">
+              <h4 class="mono">Autonomous</h4>
+              <label class="check"><input type="checkbox" name="autoLeave" checked> LEAVE the wall</label>
+              <label class="check"><input type="checkbox" name="autoPark" checked> PARK in LOADING ZONE</label>
+              <div class="range"><label for="p-autoTips">HIVE TIPS in AUTO</label><output for="p-autoTips"></output><input type="range" id="p-autoTips" name="autoTips" min="0" max="3" step="1" value="1"></div>
+            </div>
+            <div class="pgroup">
+              <h4 class="mono">TELEOP cycling <span class="muted">per robot</span></h4>
+              <div class="range"><label for="p-cycle">Cycle time</label><output for="p-cycle"></output><input type="range" id="p-cycle" name="cycle" min="4" max="25" step="0.5" value="10"></div>
+              <div class="range"><label for="p-capacity">Elements per load</label><output for="p-capacity"></output><input type="range" id="p-capacity" name="capacity" min="1" max="4" step="1" value="4"></div>
+              <div class="range"><label for="p-accuracy">Accuracy</label><output for="p-accuracy"></output><input type="range" id="p-accuracy" name="accuracy" min="30" max="100" step="5" value="80"></div>
+              <div class="range"><label for="p-ballsPerTip">Elements to TIP the HIVE <span class="muted" title="Not stated in the manual — it depends on the HIVE's balance. Measure it on your field.">(measure)</span></label><output for="p-ballsPerTip"></output><input type="range" id="p-ballsPerTip" name="ballsPerTip" min="4" max="14" step="1" value="8"></div>
+            </div>
+            <div class="pgroup">
+              <h4 class="mono">Endgame</h4>
+              <div class="range"><label for="p-flowerCaps">FLOWERS captured</label><output for="p-flowerCaps"></output><input type="range" id="p-flowerCaps" name="flowerCaps" min="0" max="4" step="1" value="1"></div>
+              <label class="check"><input type="checkbox" name="endDump" checked> Fire the last load into the CELL</label>
+              <label class="check"><input type="checkbox" name="park" checked> PARK at the buzzer</label>
+            </div>
+            <button class="btn ghost small" type="button" id="plannerFromMatch" hidden>Load numbers from my match</button>
+          </form>
+
+          <div class="planner-out">
+            <div class="panel projection">
+              <div class="proj-total">
+                <span class="muted small">Projected alliance score</span>
+                <strong class="mono" id="projTotal">0</strong>
+                <span class="mono muted" id="projSplit"></span>
+              </div>
+              <div class="stackbar" id="projBar" role="img"></div>
+              <ul class="stack-legend" id="projLegend"></ul>
+              <div class="rp-row" id="projRP"></div>
+              <p class="proj-note muted small" id="projNote"></p>
+            </div>
+            <div class="panel">
+              <div class="panel-head"><h3>Best next upgrade</h3><span class="muted small">points per match</span></div>
+              <ol class="sens" id="sens"></ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section id="rules" class="section">
+      <div class="wrap">
+        <header class="section-head">
+          <span class="section-num mono">05</span>
+          <div>
+            <h2>How BIOBUZZ scores</h2>
+            <p>Everything the scorer uses, from the 2026–27 Competition Manual. Tap a part of the field.</p>
+          </div>
+        </header>
+
+        <div class="rules-grid">
+          <div class="panel field-panel">
+            <svg class="fieldmap" id="fieldSvg" viewBox="0 0 360 360" role="group" aria-label="BIOBUZZ field schematic"></svg>
+            <p class="muted small">Schematic, not to scale. Audience side at the bottom.</p>
+          </div>
+          <div class="panel field-info" id="fieldInfo" aria-live="polite"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Match clock</h3><span class="muted small">§10.1</span></div>
+          <div class="matchbar">
+            <div class="mb auto" style="flex:30"><span class="mono">0:30</span> AUTO</div>
+            <div class="mb trans" style="flex:8"><span class="mono">0:08</span></div>
+            <div class="mb tele" style="flex:60"><span class="mono">2:00</span> TELEOP</div>
+            <div class="mb endg" style="flex:60">last <span class="mono">1:00</span> — NECTAR may enter FLOWERS</div>
+          </div>
+          <ul class="facts">
+            <li>Tips completed before TELEOP starts count as AUTO. A TIP is still assessed while launched elements come to rest after the buzzer.</li>
+            <li>Elements launched during the transition or after the buzzer don't score.</li>
+            <li>A robot may control at most <b>4</b> elements. Controlling 5+ is a violation (G415).</li>
+            <li>The HIVE is a seesaw with two CELLS. Each TIP spills the full CELL and turns the empty one upward.</li>
+            <li>The top-most NECTAR owns a FLOWER; the owner scores <b>2</b> for every element inside, whoever put it there.</li>
+            <li>MINOR FOUL: <b>5</b> to the opponent. MAJOR FOUL: <b>20</b> to the opponent.</li>
+          </ul>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>Ranking points</h3><span class="muted small">Table 10-3</span></div>
+          <table class="rptable">
+            <thead><tr><th>RP</th><th>Requirement</th><th class="num">RP</th></tr></thead>
+            <tbody>
+              <tr><td>SWARM</td><td>Alliance earns at least <b>16</b> LEAVE + PARK points</td><td class="num mono">1</td></tr>
+              <tr><td>POLLINATOR 1</td><td>Alliance completes at least <b>4</b> HIVE TIPS</td><td class="num mono">1</td></tr>
+              <tr><td>POLLINATOR 2</td><td>Alliance completes at least <b>7</b> HIVE TIPS</td><td class="num mono">1</td></tr>
+              <tr><td>WIN</td><td>More match points than the opponent</td><td class="num mono">3</td></tr>
+              <tr><td>TIE</td><td>Same match points as the opponent</td><td class="num mono">1</td></tr>
+            </tbody>
+          </table>
+          <p class="muted small">Thresholds shown are for events other than Championship. Always check the latest Team Update.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-row">
+      <span>Tipline is unofficial and not affiliated with <i>FIRST</i>®. The Head REFEREE and the official scoring system are always authoritative.</span>
+      <span class="mono">Rules: BIOBUZZ Competition Manual, 2026–27</span>
+    </div>
+  </footer>
+
+  <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
+  <dialog class="modal" id="codeDialog">
+    <form method="dialog">
+      <h3>Access code</h3>
+      <p>This site is protected so its analysis credits aren't used by strangers. Enter the code your team was given.</p>
+      <input type="password" id="codeInput" autocomplete="off" required>
+      <div class="modal-actions">
+        <button class="btn ghost small" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn primary small" value="ok">Continue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
